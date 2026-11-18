@@ -1,0 +1,84 @@
+"""Independent check of masks/<name>.npz.
+Usage:  python -m scripts.verify_masks tiny
+"""
+import json
+import math
+import sys
+
+import numpy as np
+
+import config
+from visibility import Scorer
+
+
+def line(r0, c0, r1, c1):
+    """Standard integer Bresenham, written separately from visibility.py."""
+    dx, dy = abs(c1 - c0), -abs(r1 - r0)
+    sx = 1 if c0 < c1 else -1
+    sy = 1 if r0 < r1 else -1
+    err, r, c, cells = dx + dy, r0, c0, []
+    while True:
+        cells.append((r, c))
+        if (r, c) == (r1, c1):
+            break
+        e2 = 2 * err
+        if e2 >= dy:
+            err += dy; c += sx
+        if e2 <= dx:
+            err += dx; r += sy
+    return cells
+
+
+def blocked(grid, a, b):
+    return any(grid[r, c] == 1 for r, c in line(*a, *b)[1:-1])
+
+
+def main():
+    name = sys.argv[1]
+    grid = np.array(json.load(open(f"{config.MAPS_DIR}/{name}.json"))["grid"])
+    rows, cols = grid.shape
+    d = np.load(f"{config.MASKS_DIR}/{name}.npz")
+    cand, masks = d["candidates"], d["masks"]
+    N = len(cand)
+    rng = np.random.default_rng(config.SEED)
+    sample = rng.choice(N, size=min(N, 400), replace=False)
+
+    bad = {"wall seen": 0, "own cell missing": 0, "no line of sight": 0,
+           "outside field of view": 0, "beyond range": 0, "sees nothing": 0}
+    for i in sample:
+        r, c, k = (int(x) for x in cand[i])
+        seen = masks[i].reshape(rows, cols)
+        if not seen.any():
+            bad["sees nothing"] += 1
+        if not seen[r, c]:
+            bad["own cell missing"] += 1
+        centre = k * 360.0 / config.N_DIRECTIONS
+        for tr, tc in zip(*np.where(seen)):
+            if grid[tr, tc] == 1:
+                bad["wall seen"] += 1
+            if (tr, tc) == (r, c):
+                continue
+            if blocked(grid, (r, c), (tr, tc)) and blocked(grid, (tr, tc), (r, c)):
+                bad["no line of sight"] += 1
+            ang = math.degrees(math.atan2(-(tr - r), tc - c)) % 360
+            diff = abs((ang - centre + 180) % 360 - 180)
+            if diff > config.FOV_DEG / 2 + 1e-6:
+                bad["outside field of view"] += 1
+            if math.hypot(tr - r, tc - c) > config.CAMERA_RANGE + 1e-6:
+                bad["beyond range"] += 1
+
+    print(f"{name}: checked {len(sample)} of {N} candidates")
+    for k, v in bad.items():
+        print(f"  {k:24s} {v}")
+
+    # Scorer sanity: union never double counts, score stays in 0..1
+    s = Scorer(name)
+    a, b = int(sample[0]), int(sample[1])
+    sa, sb, sab = s.score([a]), s.score([b]), s.score([a, b])
+    ok = max(sa, sb) - 1e-9 <= sab <= min(1.0, sa + sb) + 1e-9
+    print(f"  score a={sa:.3f} b={sb:.3f} both={sab:.3f}  union ok: {ok}")
+    print(f"  score of the same camera twice: {s.score([a, a]):.3f} (must equal {sa:.3f})")
+
+
+if __name__ == "__main__":
+    main()
