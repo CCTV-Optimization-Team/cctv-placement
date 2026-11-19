@@ -137,31 +137,121 @@ def to_ascii(m: GridMap) -> str:
     return "\n".join("".join(row) for row in chars)
 
 
-def plot_map(m: GridMap, path=None):
+def plot_map(m: GridMap, path=None, ax=None, legend=True):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    fig, ax = plt.subplots(figsize=(6, 6))
+    own_fig = ax is None
+    if own_fig:
+        fig, ax = plt.subplots(figsize=(6, 6))
+    else:
+        fig = ax.figure
     ax.imshow(m.grid, cmap="Greys", origin="upper", vmin=0, vmax=1.6)
     ax.scatter([c for _, c in m.entrances], [r for r, _ in m.entrances],
-               marker="s", s=90, c="tab:green", label="Entrance")
+               marker="s", s=60, c="tab:green", label="Entrance")
     ax.scatter([c for _, _, c in m.pois], [r for _, r, _ in m.pois],
-               marker="o", s=70, c="tab:blue", label="Point of interest")
+               marker="o", s=40, c="tab:blue", label="Point of interest")
     ax.scatter([c for _, _, c, _ in m.zones], [r for _, r, _, _ in m.zones],
-               marker="*", s=160, c="tab:red", label="Priority zone")
-    for n, r, c in m.pois:
-        ax.annotate(n, (c, r), xytext=(4, -6), textcoords="offset points", fontsize=7)
-    for n, r, c, _ in m.zones:
-        ax.annotate(n, (c, r), xytext=(4, -6), textcoords="offset points", fontsize=7)
-    ax.set_title(f"Map: {m.name} ({m.rows}x{m.cols})")
+               marker="*", s=110, c="tab:red", label="Priority zone")
+    ax.set_title(f"{m.name} ({m.rows}x{m.cols})", fontsize=9)
     ax.set_xticks(range(0, m.cols, 5))
     ax.set_yticks(range(0, m.rows, 5))
-    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.05), ncol=3, fontsize=8)
-    fig.tight_layout()
-    if path:
-        fig.savefig(path, dpi=130)
+    ax.tick_params(labelsize=6)
+    if legend and own_fig:
+        ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.05), ncol=3, fontsize=8)
+    if own_fig:
+        fig.tight_layout()
+        if path:
+            fig.savefig(path, dpi=130)
     return fig
+
+
+# --------------------------------------------------------------- generator
+def generate_random_map(name, rows=28, cols=28, seed=0, n_rooms=7,
+                        n_entrances=2, n_pois=4, n_zones=3) -> GridMap:
+    """Random rooms-and-corridors map. Same seed -> same map. Always connected."""
+    rng = np.random.default_rng(seed)
+    g = np.ones((rows, cols), dtype=np.int8)
+
+    # 1) non-overlapping rooms, at least 2 wall cells apart
+    rooms, tries = [], 0
+    while len(rooms) < n_rooms and tries < 2000:
+        tries += 1
+        h, w = int(rng.integers(4, 9)), int(rng.integers(4, 10))
+        r0 = int(rng.integers(1, rows - h - 1))
+        c0 = int(rng.integers(1, cols - w - 1))
+        if any(r0 < b[0] + b[2] + 2 and b[0] < r0 + h + 2 and
+               c0 < b[1] + b[3] + 2 and b[1] < c0 + w + 2 for b in rooms):
+            continue
+        rooms.append((r0, c0, h, w))
+        g[r0:r0 + h, c0:c0 + w] = 0
+    if len(rooms) < 3:
+        raise ValueError("map too small for that many rooms")
+    centers = [(r0 + h // 2, c0 + w // 2) for r0, c0, h, w in rooms]
+
+    # 2) connect every room to its nearest earlier room with an L-shaped corridor
+    def carve(r, c, wide):
+        for dr in range(2 if wide else 1):
+            for dc in range(2 if wide else 1):
+                if 1 <= r + dr < rows - 1 and 1 <= c + dc < cols - 1:
+                    g[r + dr, c + dc] = 0
+
+    for i in range(1, len(centers)):
+        (ar, ac) = centers[i]
+        j = min(range(i), key=lambda k: abs(centers[k][0] - ar) + abs(centers[k][1] - ac))
+        (br, bc) = centers[j]
+        wide = bool(rng.integers(0, 2))
+        for c in range(min(ac, bc), max(ac, bc) + 1):
+            carve(ar, c, wide)
+        for r in range(min(ar, br), max(ar, br) + 1):
+            carve(r, bc, wide)
+
+    # 3) entrances: shortest straight paths from the outer border to open space
+    options = []
+    for _ in range(60):
+        side = int(rng.integers(0, 4))
+        if side in (0, 1):
+            pos = int(rng.integers(2, cols - 2))
+            start, step = ((0, pos), (1, 0)) if side == 0 else ((rows - 1, pos), (-1, 0))
+        else:
+            pos = int(rng.integers(2, rows - 2))
+            start, step = ((pos, 0), (0, 1)) if side == 2 else ((pos, cols - 1), (0, -1))
+        path, (r, c) = [], start
+        while 0 <= r < rows and 0 <= c < cols and g[r, c] == 1:
+            path.append((r, c))
+            r, c = r + step[0], c + step[1]
+        if 0 <= r < rows and 0 <= c < cols and len(path) <= 6:
+            options.append((len(path), start, path))
+    options.sort(key=lambda o: o[0])
+    entrances = []
+    for _, start, path in options:
+        if len(entrances) == n_entrances:
+            break
+        if all(abs(start[0] - e[0]) + abs(start[1] - e[1]) > 6 for e in entrances):
+            for r, c in path:
+                g[r, c] = 0
+            entrances.append(start)
+    if not entrances:
+        raise ValueError("could not place an entrance")
+
+    # 4) points of interest and priority zones, spread over different rooms
+    names = ["Desk", "ATM", "Lift", "Shop", "Office", "Stairs"]
+    order = rng.permutation(len(rooms))
+    pois = []
+    for k in range(min(n_pois, len(names))):
+        r0, c0, h, w = rooms[order[k % len(rooms)]]
+        r, c = int(rng.integers(r0, r0 + h)), int(rng.integers(c0, c0 + w))
+        if all((r, c) != (p[1], p[2]) for p in pois):
+            pois.append((names[k], r, c))
+    zones = [(f"{n} zone", r, c, float(rng.choice([1.0, 1.5, 2.0]))) for n, r, c in pois[:n_zones]]
+    er, ec = entrances[0]
+    inward = (1 if er == 0 else -1 if er == rows - 1 else 0,
+              1 if ec == 0 else -1 if ec == cols - 1 else 0)
+    zones.append(("Entrance zone", er + 2 * inward[0], ec + 2 * inward[1], 2.0))
+    zones = [z for z in zones if g[z[1], z[2]] == 0]
+
+    return validate(GridMap(name, g, entrances, pois, zones))
 
 
 if __name__ == "__main__":
