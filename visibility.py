@@ -1,11 +1,18 @@
+
 """Person 1: visibility model.
 
-Pipeline:  map JSON -> candidates (row, col, direction) -> one boolean mask per
-candidate -> Scorer (fast weighted-coverage score from stored masks).
+Pipeline:
+    map JSON -> candidates (row, col, direction)
+    -> boolean masks -> Scorer (fast weighted coverage)
 
-Cell index convention everywhere: idx = r * cols + c.
-Direction convention: 0 = east, counter-clockwise on screen, 2 = north (row decreases).
+Direction convention:
+    0 = North (row decreases)
+    directions increase clockwise
+
+Cell index convention:
+    idx = r * cols + c
 """
+
 import json
 import math
 import os
@@ -15,180 +22,430 @@ import numpy as np
 import config
 
 
-# ---------------------------------------------------------------- map loading
+# ---------------------------------------------------------------------------
+# Map loading
+# ---------------------------------------------------------------------------
+
 def load_map(path):
-    """Load maps/<name>.json -> dict with numpy grid (0 open, 1 wall)."""
-    with open(path) as f:
+    """Load a JSON map and return its data with a NumPy grid."""
+    with open(path, "r", encoding="utf-8") as f:
         m = json.load(f)
+
     m["grid"] = np.array(m["grid"], dtype=np.uint8)
     m["rows"], m["cols"] = m["grid"].shape
     return m
 
 
-# ------------------------------------------------------------- line of sight
+# ---------------------------------------------------------------------------
+# Line of sight
+# ---------------------------------------------------------------------------
+
 def bresenham(r0, c0, r1, c1):
-    """All grid cells on the line from (r0,c0) to (r1,c1), both ends included."""
+    """Return all cells on a line between two points, including endpoints."""
     cells = []
-    dr, dc = abs(r1 - r0), abs(c1 - c0)
+
+    dr = abs(r1 - r0)
+    dc = abs(c1 - c0)
+
     sr = 1 if r1 > r0 else -1
     sc = 1 if c1 > c0 else -1
+
     err = dc - dr
     r, c = r0, c0
+
     while True:
         cells.append((r, c))
+
         if r == r1 and c == c1:
             break
+
         e2 = 2 * err
+
         if e2 > -dr:
             err -= dr
             c += sc
+
         if e2 < dc:
             err += dc
             r += sr
+
     return cells
 
 
 def has_line_of_sight(grid, a, b):
-    """True if no wall lies strictly between cell a and cell b.
+    """Return True if no wall blocks the cells strictly between a and b.
 
-    Symmetric: the line is always traced from the lexicographically smaller
-    cell, so has_line_of_sight(a, b) == has_line_of_sight(b, a).
+    The line is traced from the lexicographically smaller endpoint to ensure
+    symmetric results.
     """
     if b < a:
         a, b = b, a
-    for (r, c) in bresenham(a[0], a[1], b[0], b[1])[1:-1]:
+
+    intermediate = bresenham(a[0], a[1], b[0], b[1])[1:-1]
+
+    for r, c in intermediate:
         if grid[r, c] == 1:
             return False
+
     return True
 
 
-# ------------------------------------------------------------- visible cells
+# ---------------------------------------------------------------------------
+# Visible cells
+# ---------------------------------------------------------------------------
+
 def visible_cells_from(grid, r, c, cam_range):
-    """Open cells within cam_range (Euclidean) with clear line of sight.
-    Independent of direction, so it is computed once per camera cell.
-    Returns list of (r, c, angle_deg) with angle in [0, 360), 0 = east,
-    counter-clockwise on screen (row decreases = up).
+    """Return open cells within Euclidean camera range and LOS.
+
+    Returns:
+        List of (row, col, angle_deg).
+
+    Angle convention for geometry:
+        0 degrees = East
+        90 degrees = North
+        180 degrees = West
+        270 degrees = South
+
+    This angle convention is only used for geometric calculations.
+    Candidate directions follow config.DIRECTION_VECTORS.
     """
     rows, cols = grid.shape
-    out = [(r, c, 0.0)]  # own cell is always visible
-    R = int(math.floor(cam_range))
+
+    # Camera's own cell is always visible.
+    out = [(r, c, 0.0)]
+
+    R = int(math.ceil(cam_range))
+
     for rr in range(max(0, r - R), min(rows, r + R + 1)):
         for cc in range(max(0, c - R), min(cols, c + R + 1)):
-            if (rr, cc) == (r, c) or grid[rr, cc] == 1:
+
+            if (rr, cc) == (r, c):
                 continue
+
+            # Walls cannot be visible cells.
+            if grid[rr, cc] == 1:
+                continue
+
+            # Euclidean range constraint.
             if (rr - r) ** 2 + (cc - c) ** 2 > cam_range ** 2:
                 continue
+
             if has_line_of_sight(grid, (r, c), (rr, cc)):
-                # screen "up" is a decreasing row, so negate the row difference
-                ang = math.degrees(math.atan2(-(rr - r), cc - c)) % 360
-                out.append((rr, cc, ang))
+                # Row decreases when moving upwards.
+                angle = math.degrees(
+                    math.atan2(-(rr - r), cc - c)
+                ) % 360
+
+                out.append((rr, cc, angle))
+
     return out
 
 
 def angle_diff(a, b):
-    """Smallest absolute difference between two angles in degrees (wrap-safe)."""
+    """Return the smallest wrap-safe difference between two angles."""
     d = abs(a - b) % 360
     return min(d, 360 - d)
 
 
-# ----------------------------------------------------------------- candidates
+# ---------------------------------------------------------------------------
+# Candidate generation
+# ---------------------------------------------------------------------------
+
 def build_candidates(grid, n_directions=None):
-    """Every open cell x every direction -> int array (N, 3): row, col, dir."""
-    n_directions = n_directions or config.N_DIRECTIONS
+    """Generate candidates for every open cell and camera direction.
+
+    Candidate format:
+        (row, col, direction)
+
+    Direction convention:
+        0 = North
+        1 = North-East
+        2 = East
+        3 = South-East
+        4 = South
+        5 = South-West
+        6 = West
+        7 = North-West
+    """
+    if n_directions is None:
+        n_directions = config.N_DIRECTIONS
+
     rs, cs = np.nonzero(grid == 0)
-    cands = [(r, c, d) for r, c in zip(rs, cs) for d in range(n_directions)]
-    return np.array(cands, dtype=np.int32)
+
+    candidates = [
+        (int(r), int(c), d)
+        for r, c in zip(rs, cs)
+        for d in range(n_directions)
+    ]
+
+    return np.asarray(candidates, dtype=np.int32).reshape(-1, 3)
 
 
-def build_masks(grid, cam_range=None, fov_deg=None, n_directions=None):
-    """Returns (candidates (N,3), masks (N, rows*cols) bool)."""
-    cam_range = cam_range if cam_range is not None else config.CAMERA_RANGE
-    fov_deg = fov_deg if fov_deg is not None else config.FOV_DEG
-    n_directions = n_directions or config.N_DIRECTIONS
+# ---------------------------------------------------------------------------
+# Visibility masks
+# ---------------------------------------------------------------------------
+
+def build_masks(
+    grid,
+    cam_range=None,
+    fov_deg=None,
+    n_directions=None,
+):
+    """Build visibility masks.
+
+    Returns:
+        candidates: (N, 3)
+        masks: (N, rows, cols), bool
+
+    Direction 0 = North, increasing clockwise.
+    """
+    if cam_range is None:
+        cam_range = config.CAMERA_RANGE
+
+    if fov_deg is None:
+        fov_deg = config.FOV_DEGREES
+
+    if n_directions is None:
+        n_directions = config.N_DIRECTIONS
+
     rows, cols = grid.shape
-    step = 360.0 / n_directions
-    half = fov_deg / 2.0
 
     candidates = build_candidates(grid, n_directions)
-    masks = np.zeros((len(candidates), rows * cols), dtype=bool)
 
-    # cache per camera cell: line of sight does not depend on direction
+    masks = np.zeros(
+        (len(candidates), rows, cols),
+        dtype=bool,
+    )
+
+    half_fov = fov_deg / 2.0
+    angle_step = 360.0 / n_directions
+
+    # Visibility independent of direction, so cache by camera cell.
     cache = {}
+
     for i, (r, c, d) in enumerate(candidates):
-        key = (int(r), int(c))
+        r, c, d = int(r), int(c), int(d)
+
+        key = (r, c)
+
         if key not in cache:
-            cache[key] = visible_cells_from(grid, key[0], key[1], cam_range)
-        facing = d * step
-        for (rr, cc, ang) in cache[key]:
-            if (rr, cc) == key or angle_diff(ang, facing) <= half + 1e-9:
-                masks[i, rr * cols + cc] = True
+            cache[key] = visible_cells_from(
+                grid, r, c, cam_range
+            )
+
+        # North is 90 degrees in our geometric angle convention.
+        # Directions increase clockwise.
+        facing = (90.0 - d * angle_step) % 360
+
+        for rr, cc, angle in cache[key]:
+
+            # Camera's own cell is always visible.
+            if (rr, cc) == key:
+                masks[i, rr, cc] = True
+                continue
+
+            if angle_diff(angle, facing) <= half_fov + 1e-9:
+                masks[i, rr, cc] = True
+
     return candidates, masks
 
 
-def save_masks(path, grid, candidates, masks, cam_range, fov_deg, n_directions):
-    rows, cols = grid.shape
+def save_masks(
+    path,
+    grid,
+    candidates,
+    masks,
+    cam_range=None,
+    fov_deg=None,
+    n_directions=None,
+):
+    """Save masks in the agreed project format.
+
+    NPZ keys:
+        candidates
+        masks
+    """
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+
     np.savez_compressed(
         path,
         candidates=candidates,
-        masks=masks,
-        open_cells=(grid == 0).ravel(),
-        meta=np.array([rows, cols, cam_range, fov_deg, n_directions], dtype=float),
+        masks=masks.astype(bool, copy=False),
     )
 
 
-# --------------------------------------------------------------------- Scorer
-class Scorer:
-    """Fast weighted coverage from precomputed masks.
+# ---------------------------------------------------------------------------
+# Scorer
+# ---------------------------------------------------------------------------
 
-    scorer = Scorer("hall", weights)          # loads masks/hall.npz
-    scorer.score([12, 407, 3051])             # candidate indices -> 0..1
-    scorer.gain(covered, c)                   # extra weighted coverage of candidate c
-    scorer.covered_grid([12, 407])            # (rows, cols) bool, for heatmaps
-    weights: None (uniform over open cells) or array of shape (rows, cols).
+class Scorer:
+    """Fast weighted coverage Scorer using precomputed visibility masks.
+
+    Usage:
+        scorer = Scorer(gmap, weights=None)
+        scorer.score(selected)
+        scorer.raw_coverage(selected)
+        scorer.gain(covered, candidate_index)
+
+    Args:
+        gmap: map dictionary containing name and grid.
+        weights: optional 2D priority-weight array.
+
+    selected:
+        List of candidate indices.
     """
 
-    def __init__(self, name, weights=None, masks_dir=None):
-        masks_dir = masks_dir or config.MASKS_DIR
-        data = np.load(os.path.join(masks_dir, f"{name}.npz"))
-        self.candidates = data["candidates"]
-        self.masks = data["masks"]
-        self.open_cells = data["open_cells"]
-        self.rows, self.cols = int(data["meta"][0]), int(data["meta"][1])
-        self.set_weights(weights)
-        self.n_evals = 0
+    def __init__(self, gmap, weights=None):
+        self.gmap = gmap
 
-    def set_weights(self, weights):
+        # Support the shared map dictionary returned by load_map().
+        if isinstance(gmap, dict):
+            self.name = gmap.get("name")
+            self.grid = np.asarray(gmap["grid"])
+        else:
+            self.name = getattr(gmap, "name", None)
+            self.grid = np.asarray(gmap.grid)
+
+        if self.name is None:
+            raise ValueError("Map must have a name.")
+
+        self.rows, self.cols = self.grid.shape
+        self.open_cells = (self.grid == 0)
+        self.n_open_cells = int(self.open_cells.sum())
+
+        mask_path = os.path.join(
+            config.MASKS_DIR,
+            f"{self.name}.npz",
+        )
+
+        if not os.path.exists(mask_path):
+            raise FileNotFoundError(
+                f"Visibility masks not found: {mask_path}. "
+                "Run the mask precomputation script first."
+            )
+
+        with np.load(mask_path) as data:
+            self.candidates = data["candidates"]
+            self.masks = data["masks"]
+
+        expected_shape = (
+            len(self.candidates),
+            self.rows,
+            self.cols,
+        )
+
+        if self.masks.shape != expected_shape:
+            raise ValueError(
+                f"Mask shape mismatch. Expected {expected_shape}, "
+                f"got {self.masks.shape}"
+            )
+
+        if self.masks.dtype != bool:
+            self.masks = self.masks.astype(bool)
+
+        self.n_candidates = len(self.candidates)
+        self.evaluations = 0
+
+        self.set_weights(weights)
+
+    # ---------------------------------------------------------------------
+
+    def set_weights(self, weights=None):
+        """Set scoring weights. Wall weights are always ignored."""
         if weights is None:
             w = self.open_cells.astype(float)
         else:
-            w = np.asarray(weights, dtype=float).reshape(-1)
-            assert w.size == self.rows * self.cols, "weights must be (rows, cols)"
-            w = np.where(self.open_cells, w, 0.0)  # walls are never scored
-        assert (w >= 0).all(), "weights must be non-negative"
-        assert np.isfinite(w).all(), "weights must contain only finite values"
-        self.weights = w
-        self.total = w.sum()
+            w = np.asarray(weights, dtype=float)
 
-    @property
-    def n_candidates(self):
-        return len(self.candidates)
+            if w.shape != (self.rows, self.cols):
+                raise ValueError(
+                    f"Weights must have shape {(self.rows, self.cols)}, "
+                    f"got {w.shape}"
+                )
+
+            w = w.copy()
+            w[~self.open_cells] = 0.0
+
+        if not np.isfinite(w).all():
+            raise ValueError("Weights must contain only finite values.")
+
+        if (w < 0).any():
+            raise ValueError("Weights must be non-negative.")
+
+        self.weights = w.ravel()
+        self.total = float(self.weights.sum())
+
+    # ---------------------------------------------------------------------
 
     def covered_mask(self, selected):
+        """Return a flattened boolean coverage array."""
         if len(selected) == 0:
             return np.zeros(self.rows * self.cols, dtype=bool)
-        return np.logical_or.reduce(self.masks[list(selected)], axis=0)
+
+        selected_masks = self.masks[list(selected)]
+
+        # (num_selected, rows, cols) -> (rows, cols)
+        covered = np.any(selected_masks, axis=0)
+
+        return covered.ravel()
+
+    # ---------------------------------------------------------------------
 
     def score(self, selected):
-        """Weighted coverage in 0..1; a cell seen twice counts once."""
-        self.n_evals += 1
+        """Return weighted coverage in [0, 1]."""
+        self.evaluations += 1
+
         if self.total == 0:
             return 0.0
-        return float(self.weights[self.covered_mask(selected)].sum() / self.total)
+
+        covered = self.covered_mask(selected)
+
+        return float(
+            self.weights[covered].sum() / self.total
+        )
+
+    # ---------------------------------------------------------------------
+
+    def raw_coverage(self, selected):
+        """Return fraction of open cells covered, ignoring priority weights."""
+        self.evaluations += 1
+
+        if self.n_open_cells == 0:
+            return 0.0
+
+        covered = self.covered_mask(selected)
+
+        # Walls are excluded regardless of what masks contain.
+        covered &= self.open_cells.ravel()
+
+        return float(covered.sum() / self.n_open_cells)
+
+    # ---------------------------------------------------------------------
 
     def gain(self, covered, c):
-        """Extra weighted coverage from adding candidate c to a boolean covered array."""
-        new = self.masks[c] & ~covered
-        return float(self.weights[new].sum() / self.total) if self.total else 0.0
+        """Return additional weighted coverage from candidate c.
+
+        covered may be flattened or shaped (rows, cols).
+        """
+        covered = np.asarray(covered, dtype=bool).reshape(-1)
+
+        if covered.size != self.rows * self.cols:
+            raise ValueError("covered array has incorrect size")
+
+        if self.total == 0:
+            return 0.0
+
+        new_cells = self.masks[c].ravel() & ~covered
+        new_cells &= self.open_cells.ravel()
+
+        return float(
+            self.weights[new_cells].sum() / self.total
+        )
+
+    # ---------------------------------------------------------------------
 
     def covered_grid(self, selected):
-        return self.covered_mask(selected).reshape(self.rows, self.cols)
+        """Return (rows, cols) boolean grid of covered cells."""
+        return self.covered_mask(selected).reshape(
+            self.rows, self.cols
+        )

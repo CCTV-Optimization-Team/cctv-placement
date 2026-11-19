@@ -1,13 +1,22 @@
-"""Shared settings. Person 4 owns this file; Person 1 adds the camera constants."""
+"""Shared project settings."""
 
-# --- Person 1: camera model ---
-N_DIRECTIONS = 8      # 8 directions = one every 45 degrees
-FOV_DEG = 90          # field of view in degrees
-CAMERA_RANGE = 8      # range in grid cells
+# --- Camera model ---
+N_DIRECTIONS = 8
+FOV_DEGREES = 90
+CAMERA_RANGE = 6
 
-# Direction convention (write it in the README):
-#   direction 0 faces EAST (column increases), indices go COUNTER-CLOCKWISE
-#   as drawn on screen, so direction 2 faces NORTH (row decreases).
+# Directions: 0 = North; increasing clockwise.
+# (row_delta, col_delta)
+DIRECTION_VECTORS = [
+    (-1,  0),  # 0: North
+    (-1,  1),  # 1: North-East
+    ( 0,  1),  # 2: East
+    ( 1,  1),  # 3: South-East
+    ( 1,  0),  # 4: South
+    ( 1, -1),  # 5: South-West
+    ( 0, -1),  # 6: West
+    (-1, -1),  # 7: North-West
+]
 
 # --- Shared ---
 SEED = 42
