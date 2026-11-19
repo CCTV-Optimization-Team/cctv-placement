@@ -1,5 +1,5 @@
-
 import numpy as np
+
 from visibility import (
     build_masks,
     has_line_of_sight,
@@ -22,14 +22,14 @@ def test_open_room_camera_sees_its_wedge():
         grid, cam_range=4, fov_deg=90
     )
 
-    # Direction 2 = East in the shared config
+    # Direction 2 = East
     idx = get_candidate_index(candidates, 4, 4, 2)
     visible = masks[idx].reshape(9, 9)
 
-    assert visible[4, 4]       # Camera's own cell
-    assert visible[4, 6]       # East
-    assert visible[2, 6]       # North-east
-    assert not visible[2, 4]    # North is outside the wedge
+    assert visible[4, 4]
+    assert visible[4, 6]
+    assert visible[2, 6]
+    assert not visible[2, 4]
 
 
 def test_wall_blocks_visibility():
@@ -40,13 +40,11 @@ def test_wall_blocks_visibility():
         grid, cam_range=5, fov_deg=90
     )
 
-    # Direction 2 = East
     idx = get_candidate_index(candidates, 2, 1, 2)
     visible = masks[idx].reshape(5, 5)
 
     assert visible[2, 2]
     assert not visible[2, 4]
-
 
 
 def test_east_camera_does_not_see_west():
@@ -56,12 +54,11 @@ def test_east_camera_does_not_see_west():
         grid, cam_range=4, fov_deg=90
     )
 
-    # Direction 2 = East
     idx = get_candidate_index(candidates, 2, 2, 2)
     visible = masks[idx]
 
-    assert visible[2, 4]       # East is visible
-    assert not visible[2, 0]   # West is not visible
+    assert visible[2, 4]
+    assert not visible[2, 0]
 
 
 def test_overlapping_cameras_do_not_double_count(tmp_path):
@@ -71,15 +68,20 @@ def test_overlapping_cameras_do_not_double_count(tmp_path):
         grid, cam_range=4, fov_deg=90
     )
 
+    gmap = {
+        "name": "test_overlap",
+        "grid": grid,
+    }
+
     save_masks(
-        tmp_path / "tiny.npz",
+        tmp_path / "test_overlap.npz",
         grid,
         candidates,
         masks,
         4, 90, 8
     )
 
-    scorer = Scorer("tiny", masks_dir=tmp_path)
+    scorer = Scorer(gmap, masks_dir=tmp_path)
 
     a = get_candidate_index(candidates, 2, 1, 2)
     b = get_candidate_index(candidates, 2, 3, 2)
