@@ -17,7 +17,7 @@ N_DIRECTIONS = 8          # 8 -> 45 degree steps
 DIRECTION_VECTORS = [(-1, 0), (-1, 1), (0, 1), (1, 1), (1, 0), (1, -1), (0, -1), (-1, -1)]
 
 # ---- experiments (Person 4 runner, Person 2 algorithms) ----
-MAP_NAMES = ["tiny"]                  # extended as more maps are added
+MAP_NAMES = ["tiny", "college", "metro", "random_1", "random_2", "random_3", "random_4", "random_5"]
 K_VALUES = [2, 3, 4, 5, 6]
 WEIGHTINGS = ["uniform", "predicted", "true"]
 ALGORITHMS = ["random", "greedy", "hill_climbing", "hill_climbing_restarts", "annealing"]
