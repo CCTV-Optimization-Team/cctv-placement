@@ -1,5 +1,7 @@
 
 import numpy as np
+import pytest
+
 from visibility import Scorer
 
 
@@ -8,7 +10,7 @@ def test_uniform_weights():
 
     assert np.all(scorer.weights[scorer.open_cells] == 1.0)
     assert np.all(scorer.weights[~scorer.open_cells] == 0.0)
-
+    assert scorer.total == float(scorer.n_open_cells)
 
 
 def test_external_priority_weights():
@@ -17,7 +19,7 @@ def test_external_priority_weights():
 
     scorer = Scorer("tiny", weights=weights)
 
-    assert scorer.weights[24] == 3.0
+    assert scorer.weights[4, 4] == 3.0
     assert scorer.total == 25.0
 
 
@@ -27,18 +29,16 @@ def test_wall_weights_are_ignored():
 
     scorer = Scorer("tiny", weights=weights)
 
-    assert scorer.weights[7] == 0.0
+    assert scorer.weights[1, 2] == 0.0
     assert scorer.total == 23.0
+
 
 def test_invalid_negative_weights():
     weights = np.ones((5, 5))
-    weights[0, 0] = -1
+    weights[2, 2] = -1.0
 
-    try:
+    with pytest.raises(ValueError):
         Scorer("tiny", weights=weights)
-        assert False, "Negative weights should raise an error"
-    except AssertionError:
-        pass
 
 
 def test_zero_weights():

@@ -22,46 +22,50 @@ def test_open_room_camera_sees_its_wedge():
         grid, cam_range=4, fov_deg=90
     )
 
-    idx = get_candidate_index(candidates, 4, 4, 0)
+    # Direction 2 = East in the shared config
+    idx = get_candidate_index(candidates, 4, 4, 2)
     visible = masks[idx].reshape(9, 9)
 
     assert visible[4, 4]       # Camera's own cell
     assert visible[4, 6]       # East
     assert visible[2, 6]       # North-east
-    assert not visible[2, 4]   # North is outside the wedge
+    assert not visible[2, 4]    # North is outside the wedge
 
 
 def test_wall_blocks_visibility():
-    grid = np.zeros((5, 7), dtype=np.uint8)
+    grid = np.zeros((5, 5), dtype=np.uint8)
     grid[2, 3] = 1
 
     candidates, masks = build_masks(
         grid, cam_range=5, fov_deg=90
     )
 
-    idx = get_candidate_index(candidates, 2, 1, 0)
-    visible = masks[idx].reshape(5, 7)
+    # Direction 2 = East
+    idx = get_candidate_index(candidates, 2, 1, 2)
+    visible = masks[idx].reshape(5, 5)
 
     assert visible[2, 2]
     assert not visible[2, 4]
 
 
+
 def test_east_camera_does_not_see_west():
-    grid = np.zeros((7, 7), dtype=np.uint8)
+    grid = np.zeros((5, 5), dtype=np.uint8)
 
     candidates, masks = build_masks(
         grid, cam_range=4, fov_deg=90
     )
 
-    idx = get_candidate_index(candidates, 3, 3, 0)
-    visible = masks[idx].reshape(7, 7)
+    # Direction 2 = East
+    idx = get_candidate_index(candidates, 2, 2, 2)
+    visible = masks[idx]
 
-    assert visible[3, 5]
-    assert not visible[3, 1]
+    assert visible[2, 4]       # East is visible
+    assert not visible[2, 0]   # West is not visible
 
 
 def test_overlapping_cameras_do_not_double_count(tmp_path):
-    grid = np.zeros((5, 7), dtype=np.uint8)
+    grid = np.zeros((5, 5), dtype=np.uint8)
 
     candidates, masks = build_masks(
         grid, cam_range=4, fov_deg=90
@@ -77,8 +81,8 @@ def test_overlapping_cameras_do_not_double_count(tmp_path):
 
     scorer = Scorer("tiny", masks_dir=tmp_path)
 
-    a = get_candidate_index(candidates, 2, 1, 0)
-    b = get_candidate_index(candidates, 2, 3, 0)
+    a = get_candidate_index(candidates, 2, 1, 2)
+    b = get_candidate_index(candidates, 2, 3, 2)
 
     combined = scorer.score([a, b])
     individual_sum = scorer.score([a]) + scorer.score([b])

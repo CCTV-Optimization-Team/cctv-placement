@@ -1,25 +1,54 @@
+
 from pathlib import Path
-from visibility import load_map, build_masks, save_masks
+import numpy as np
+
+from visibility import load_map, build_candidates, build_masks, save_masks
 import config
 
-maps_dir = Path(config.MAPS_DIR)
-masks_dir = Path(config.MASKS_DIR)
-masks_dir.mkdir(parents=True, exist_ok=True)
 
-for path in maps_dir.glob("*.json"):
-    m = load_map(path)
-    grid = m["grid"]
+def main():
+    maps_dir = Path(config.MAPS_DIR)
+    masks_dir = Path(config.MASKS_DIR)
+    masks_dir.mkdir(parents=True, exist_ok=True)
 
-    candidates, masks = build_masks(grid)
+    map_files = sorted(maps_dir.glob("*.json"))
 
-    save_masks(
-        masks_dir / f"{path.stem}.npz",
-        grid,
-        candidates,
-        masks,
-        config.CAMERA_RANGE,
-        config.FOV_DEG,
-        config.N_DIRECTIONS
-    )
+    if not map_files:
+        print("No maps found.")
+        return
 
-    print(f"Saved {path.stem}: {len(candidates)} candidates")
+    for map_path in map_files:
+        print(f"\nProcessing: {map_path.name}")
+
+        gmap = load_map(map_path)
+        grid = gmap["grid"]
+
+        candidates = build_candidates(grid)
+
+        candidates,masks = build_masks(
+            grid,
+            cam_range=config.CAMERA_RANGE,
+            fov_deg=config.FOV_DEGREES,
+            n_directions=config.N_DIRECTIONS,
+        )
+
+        output_path = masks_dir / f"{map_path.stem}.npz"
+
+        save_masks(
+            output_path,
+            grid,
+            candidates,
+            masks,
+            cam_range=config.CAMERA_RANGE,
+            fov_deg=config.FOV_DEGREES,
+            n_directions=config.N_DIRECTIONS,
+        )
+
+        print(f"Map size: {grid.shape}")
+        print(f"Candidates: {len(candidates)}")
+        print(f"Masks shape: {masks.shape}")
+        print(f"Saved: {output_path}")
+
+
+if __name__ == "__main__":
+    main()
