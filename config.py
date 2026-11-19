@@ -15,6 +15,7 @@ FOV_DEGREES = 90          # total field of view
 N_DIRECTIONS = 8          # 8 -> 45 degree steps
 # (d_row, d_col) of each direction index, clockwise from up
 DIRECTION_VECTORS = [(-1, 0), (-1, 1), (0, 1), (1, 1), (1, 0), (1, -1), (0, -1), (-1, -1)]
+ZONE_RADIUS = 2           # priority zone bonus applies to open cells within this distance
 
 # ---- experiments (Person 4 runner, Person 2 algorithms) ----
 MAP_NAMES = ["tiny", "college", "metro", "random_1", "random_2", "random_3", "random_4", "random_5"]
@@ -27,7 +28,7 @@ BASE_SEED = 42
 
 # ---- paths ----
 MAPS_DIR = "maps"
-MASKS_DIR = "masks"        # masks/<map>.npz        (Person 1 writes)
+MASKS_DIR = "masks"        # masks/<map>.npz with keys "candidates", "masks"  (Person 1 writes)
 PRIORITY_DIR = "priority"  # priority/<map>_true.npy, <map>_pred.npy  (Person 3 writes)
 RESULTS_DIR = "results"    # results/<run>.csv      (runner writes)
 
