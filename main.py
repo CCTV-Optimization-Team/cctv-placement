@@ -6,6 +6,8 @@ from simulation import find_path, simulate_traffic
 
 from ml_priority import create_true_priority_map, save_priority_map
 
+from features import extract_features, FEATURE_NAMES
+
 
 # --------------------------------
 # 1. CREATE A TEMPORARY 20x20 MAP
@@ -55,6 +57,23 @@ if path is not None:
     print("Number of cells:", len(path))
 else:
     print("No path found!")
+
+# --------------------------------
+# FEATURE EXTRACTION
+# --------------------------------
+# Extract ML features
+X, cell_coordinates = extract_features(grid, entrances, pois)
+
+print("\nFeature Extraction Results")
+print("Feature names:", FEATURE_NAMES)
+print("Feature matrix shape:", X.shape)
+print("Number of cell coordinates:", len(cell_coordinates))
+
+print("\nFirst 5 feature rows:")
+print(X[:5])
+
+print("\nFirst 5 cell coordinates:")
+print(cell_coordinates[:5])
 
 
 # --------------------------------
@@ -183,3 +202,14 @@ plt.ylabel("Row")
 
 plt.show()
 
+# Prepare ML Dataset
+
+y = np.array([
+    true_priority[row, col]
+    for row, col in cell_coordinates
+])
+
+print("\nML Dataset Results")
+print("X shape:", X.shape)
+print("y shape:", y.shape)
+print("First 5 target values:", y[:5])
