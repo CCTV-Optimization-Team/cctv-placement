@@ -12,6 +12,8 @@ from pathlib import Path
 
 import numpy as np
 
+import config
+
 MAPS_DIR = Path(__file__).parent / "maps"
 
 
@@ -124,6 +126,27 @@ def load_map(path) -> GridMap:
 def build_map(name) -> GridMap:
     """Shared interface: build_map('tiny') -> GridMap loaded from maps/tiny.json."""
     return load_map(MAPS_DIR / f"{name}.json")
+
+
+def zone_bonus_map(gmap: GridMap, radius=None):
+    """Priority-zone bonus as a float array of shape (rows, cols).
+
+    Input : a GridMap (from build_map(name)); uses gmap.zones = [(name, row, col, bonus), ...].
+    radius: defaults to config.ZONE_RADIUS (Euclidean distance, in cells).
+    Rule  : every OPEN cell with distance <= radius from a zone's (row, col) gets that zone's
+            bonus added. Overlapping zones add up. Walls always stay 0.
+    Note  : distance is straight-line and ignores walls, so a zone next to a wall can
+            also cover open cells on the other side of it.
+    Output: np.ndarray float64, same shape as gmap.grid, 0.0 where there is no zone.
+    Use   : true_priority = traffic / traffic.max() + zone_bonus_map(gmap)
+    """
+    radius = config.ZONE_RADIUS if radius is None else radius
+    bonus = np.zeros(gmap.grid.shape, dtype=float)
+    rr, cc = np.indices(gmap.grid.shape)
+    open_ = gmap.grid == 0
+    for _, r, c, b in gmap.zones:
+        bonus[open_ & ((rr - r) ** 2 + (cc - c) ** 2 <= radius ** 2)] += b
+    return bonus
 
 
 def to_ascii(m: GridMap) -> str:

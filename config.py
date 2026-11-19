@@ -22,6 +22,7 @@ MAP_NAMES = ["tiny", "college", "metro", "random_1", "random_2", "random_3", "ra
 K_VALUES = [2, 3, 4, 5, 6]
 WEIGHTINGS = ["uniform", "predicted", "true"]
 ALGORITHMS = ["random", "greedy", "hill_climbing", "hill_climbing_restarts", "annealing"]
+DETERMINISTIC_ALGORITHMS = ["greedy"]   # run once per setting, seeds do not matter
 EVAL_BUDGET = 2000        # score evaluations allowed per run, same for every algorithm
 N_SEEDS = 20              # seeded runs for the random methods
 BASE_SEED = 42
