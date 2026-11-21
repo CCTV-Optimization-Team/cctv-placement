@@ -1,3 +1,33 @@
+# CCTV Camera Placement
+
+Priority-aware CCTV camera placement using search algorithms and machine learning.
+
+## Modules
+
+| File | Owner |
+|---|---|
+| `map.py`, `maps/`, experiment runner, charts, report | Person 4 |
+| `visibility.py` | Person 1 |
+| `algorithms.py` | Person 2 |
+| `ml_priority.py` | Person 3 |
+
+## Conventions
+
+- Cells are `(row, col)`, zero-indexed, row 0 is the top.
+- Grid: `0 = open`, `1 = wall`.
+- Direction: `0–7`, where 0 = North, clockwise.
+- Weights: `(rows, cols)` float array, walls = 0.
+
+## Workflow
+
+One branch per person (`p<number>/<topic>`), merge through Pull Requests. No direct pushes to `main`.
+
+## Setup
+
+```bash
+pip install -r requirements.txt
+```
+
 ## Visibility Model (Person 1)
 
 The visibility model generates possible CCTV camera locations and orientations, calculates line-of-sight visibility, and precomputes visibility masks for efficient camera placement.
@@ -39,7 +69,7 @@ python -m pytest -v
 
 ### Performance Benchmark
 
-The tiny map (5 × 5) contains 184 camera candidates. Mask generation was benchmarked over three runs, with a median execution time of approximately 0.0065 seconds.
+The tiny map currently contains 20 × 20 cells. The number of camera candidates depends on the map dimensions, open cells, and supported camera orientations. Masks are precomputed and saved for reuse.
 
 ### Current Test Status
 
