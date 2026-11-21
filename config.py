@@ -16,11 +16,13 @@ N_DIRECTIONS = 8          # 8 -> 45 degree steps
 # (d_row, d_col) of each direction index, clockwise from up
 DIRECTION_VECTORS = [(-1, 0), (-1, 1), (0, 1), (1, 1), (1, 0), (1, -1), (0, -1), (-1, -1)]
 ZONE_RADIUS = 2           # priority zone bonus applies to open cells within this distance
+
 # ---- experiments (Person 4 runner, Person 2 algorithms) ----
 MAP_NAMES = ["tiny", "college", "metro", "random_1", "random_2", "random_3", "random_4", "random_5"]
 K_VALUES = [2, 3, 4, 5, 6]
 WEIGHTINGS = ["uniform", "predicted", "true"]
 ALGORITHMS = ["random", "greedy", "hill_climbing", "hill_climbing_restarts", "annealing"]
+DETERMINISTIC_ALGORITHMS = ["greedy"]   # run once per setting, seeds do not matter
 EVAL_BUDGET = 2000        # score evaluations allowed per run, same for every algorithm
 N_SEEDS = 20              # seeded runs for the random methods
 BASE_SEED = 42
