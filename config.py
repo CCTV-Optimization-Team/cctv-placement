@@ -1,38 +1,71 @@
-"""config.py - shared settings. Change values here, never hard-code them in a module.
 
-Conventions shared by everyone:
+"""Shared project settings.
+
+Conventions:
   * Cells are (row, col), zero-indexed, row 0 is the TOP row.
-  * grid: 0 = open cell, 1 = wall.
-  * Candidate = (row, col, direction). direction is an integer 0..N_DIRECTIONS-1,
-    0 = facing up (row decreases), increasing CLOCKWISE (see DIRECTION_VECTORS).
-  * weights / priority maps are 2-D float arrays with the same shape as the grid,
-    walls = 0. Uniform weighting = 1.0 on every open cell.
+  * Grid: 0 = open cell, 1 = wall.
+  * Candidate = (row, col, direction), direction 0..7, clockwise from North.
+  * Weights are 2-D float arrays matching grid shape; walls = 0.
 """
 
-# ---- camera model (Person 1 owns the meaning, everyone reads) ----
-CAMERA_RANGE = 6          # cells
-FOV_DEGREES = 90          # total field of view
-N_DIRECTIONS = 8          # 8 -> 45 degree steps
-# (d_row, d_col) of each direction index, clockwise from up
-DIRECTION_VECTORS = [(-1, 0), (-1, 1), (0, 1), (1, 1), (1, 0), (1, -1), (0, -1), (-1, -1)]
-ZONE_RADIUS = 2           # priority zone bonus applies to open cells within this distance
+# ---- Camera model (Person 1) ----
+CAMERA_RANGE = 6
+FOV_DEGREES = 90
+N_DIRECTIONS = 8
 
-# ---- experiments (Person 4 runner, Person 2 algorithms) ----
-MAP_NAMES = ["tiny", "college", "metro", "random_1", "random_2", "random_3", "random_4", "random_5"]
+# (row_delta, col_delta), clockwise from North
+DIRECTION_VECTORS = [
+    (-1,  0),  # 0: North
+    (-1,  1),  # 1: North-East
+    ( 0,  1),  # 2: East
+    ( 1,  1),  # 3: South-East
+    ( 1,  0),  # 4: South
+    ( 1, -1),  # 5: South-West
+    ( 0, -1),  # 6: West
+    (-1, -1),  # 7: North-West
+]
+
+# ---- Priority zones (Person 3) ----
+ZONE_RADIUS = 2
+
+# ---- Experiments (Person 2 & Person 4) ----
+MAP_NAMES = [
+    "tiny", "college", "metro",
+    "random_1", "random_2", "random_3",
+    "random_4", "random_5"
+]
+
 K_VALUES = [2, 3, 4, 5, 6]
 WEIGHTINGS = ["uniform", "predicted", "true"]
-ALGORITHMS = ["random", "greedy", "hill_climbing", "hill_climbing_restarts", "annealing"]
-DETERMINISTIC_ALGORITHMS = ["greedy"]   # run once per setting, seeds do not matter
-EVAL_BUDGET = 2000        # score evaluations allowed per run, same for every algorithm
-N_SEEDS = 20              # seeded runs for the random methods
+
+ALGORITHMS = [
+    "random",
+    "greedy",
+    "hill_climbing",
+    "hill_climbing_restarts",
+    "annealing"
+]
+
+DETERMINISTIC_ALGORITHMS = ["greedy"]
+EVAL_BUDGET = 2000
+N_SEEDS = 20
 BASE_SEED = 42
 
-# ---- paths ----
+# ---- Paths ----
 MAPS_DIR = "maps"
-MASKS_DIR = "masks"        # masks/<map>.npz with keys "candidates", "masks"  (Person 1 writes)
-PRIORITY_DIR = "priority"  # priority/<map>_true.npy, <map>_pred.npy  (Person 3 writes)
-RESULTS_DIR = "results"    # results/<run>.csv      (runner writes)
+MASKS_DIR = "masks"
+PRIORITY_DIR = "priority"
+RESULTS_DIR = "results"
 
-# columns of every results CSV row
-RESULT_COLUMNS = ["algorithm", "map", "K", "weighting", "seed",
-                  "score", "raw_coverage", "runtime", "evaluations"]
+# ---- Results CSV columns ----
+RESULT_COLUMNS = [
+    "algorithm",
+    "map",
+    "K",
+    "weighting",
+    "seed",
+    "score",
+    "raw_coverage",
+    "runtime",
+    "evaluations",
+]

@@ -1,6 +1,10 @@
-numpy
+
 pandas
+numpy
+scikit-learn>=1.2
+xgboost
+joblib
 matplotlib
-scikit-learn
 pytest
 jupyter
+

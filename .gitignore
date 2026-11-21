@@ -1,6 +1,8 @@
+venv/
+.venv/
 __pycache__/
+.pytest_cache/
 *.pyc
 .ipynb_checkpoints/
-.venv/
 .DS_Store
 results/*quick*
