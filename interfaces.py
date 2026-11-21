@@ -119,23 +119,7 @@ def run(algorithm: str, scorer: Scorer, K: int, budget: int, seed: int) -> RunRe
 
 
 # ---------------------------------------------------------------- Person 4
-def run_experiments(cfg=config):
-    """-> pandas DataFrame with columns config.RESULT_COLUMNS.  STUB runner, small and quick."""
-    import pandas as pd
-    rows = []
-    for name in cfg.MAP_NAMES:
-        gmap = build_map(name)
-        for weighting in cfg.WEIGHTINGS:
-            for K in cfg.K_VALUES[:2]:
-                for algo in cfg.ALGORITHMS[:1]:
-                    for seed in range(2):
-                        weights = get_weights(gmap, weighting)
-                        scorer = Scorer(gmap, weights=weights)
-                        res = run(algo, scorer, K, budget=50, seed=cfg.BASE_SEED + seed)
-                        # always report against the TRUE weights
-                        true_scorer = Scorer(gmap, weights=true_priority(gmap))
-                        rows.append([algo, name, K, weighting, seed,
-                                     true_scorer.score(res.placement),
-                                     true_scorer.raw_coverage(res.placement),
-                                     res.runtime, res.evaluations])
-    return pd.DataFrame(rows, columns=cfg.RESULT_COLUMNS)
+def run_experiments(cfg=config, **kwargs):
+    """-> pandas DataFrame with columns config.RESULT_COLUMNS. The real code is in runner.py."""
+    from runner import run_experiments as _run
+    return _run(cfg, **kwargs)
