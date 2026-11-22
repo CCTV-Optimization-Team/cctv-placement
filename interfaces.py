@@ -20,6 +20,7 @@ import numpy as np
 
 import config
 from map import GridMap, build_map  # build_map(name) -> GridMap   (Person 4, real)
+from ml_priority import predict_priority, true_priority
 
 
 # ---------------------------------------------------------------- Person 1
@@ -71,17 +72,6 @@ class Scorer:
 # ---------------------------------------------------------------- Person 3
 def uniform_weights(gmap: GridMap):
     return (gmap.grid == 0).astype(float)
-
-
-def predict_priority(gmap: GridMap):
-    """-> float array (rows, cols), walls 0.  STUB: uniform."""
-    return uniform_weights(gmap)
-
-
-def true_priority(gmap: GridMap):
-    """-> float array (rows, cols), walls 0.  STUB: uniform. Real one loads priority/<name>_true.npy."""
-    return uniform_weights(gmap)
-
 
 def get_weights(gmap: GridMap, weighting: str):
     """weighting in config.WEIGHTINGS -> weight array. Used by the runner."""

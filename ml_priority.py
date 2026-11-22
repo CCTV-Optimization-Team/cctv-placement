@@ -59,3 +59,63 @@ def save_priority_map(priority_map, map_name):
     np.save(file_path, priority_map)
 
     print(f"True priority map saved at: {file_path}")
+
+
+def predict_priority(gmap):
+    """
+    Loads the Gradient Boosting predicted priority map
+    for the given GridMap.
+    """
+
+    file_path = os.path.join(
+        config.PRIORITY_DIR,
+        f"{gmap.name}_pred.npy"
+    )
+
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(
+            f"Predicted priority map not found: {file_path}"
+        )
+
+    priority = np.load(file_path)
+
+    if priority.shape != gmap.grid.shape:
+        raise ValueError("Predicted priority map dimensions do not match!")
+
+    if not np.isfinite(priority).all():
+        raise ValueError("Predicted priority map contains NaN or infinity!")
+
+    if np.any(priority[gmap.grid == 1] != 0):
+        raise ValueError("Wall cells must have priority 0!")
+
+    return priority.astype(float)
+
+
+def true_priority(gmap):
+    """
+    Loads the true priority map for the given GridMap.
+    """
+
+    file_path = os.path.join(
+        config.PRIORITY_DIR,
+        f"{gmap.name}_true.npy"
+    )
+
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(
+            f"True priority map not found: {file_path}"
+        )
+
+    priority = np.load(file_path)
+
+    if priority.shape != gmap.grid.shape:
+        raise ValueError("True priority map dimensions do not match!")
+
+    if not np.isfinite(priority).all():
+        raise ValueError("True priority map contains NaN or infinity!")
+
+    if np.any(priority[gmap.grid == 1] != 0):
+        raise ValueError("Wall cells must have priority 0!")
+
+    return priority.astype(float)
+
