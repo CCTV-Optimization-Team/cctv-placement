@@ -135,29 +135,10 @@ def run(
     budget: int,
     seed: int,
 ) -> RunResult:
-    """STUB: random placement. Algorithms are defined in config.ALGORITHMS."""
-    rng = np.random.default_rng(seed)
-    t0 = time.perf_counter()
-    start_evals = scorer.evaluations
+    """Delegates to algorithms.py (Person 2)."""
+    from algorithms import run as _run
 
-    best, best_sel, history = -1.0, None, []
-
-    for _ in range(budget):
-        sel = rng.choice(scorer.n_candidates, size=K, replace=False).tolist()
-        s = scorer.score(sel)
-
-        if s > best:
-            best, best_sel = s, sel
-
-        history.append(best)
-
-    return RunResult(
-        best_sel,
-        best,
-        history,
-        time.perf_counter() - t0,
-        scorer.evaluations - start_evals,
-    )
+    return _run(algorithm, scorer, K, budget, seed)
 
 
 # ---------------------------------------------------------------------------

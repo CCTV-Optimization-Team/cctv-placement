@@ -1,0 +1,44 @@
+"""
+Runs every algorithm on the stub scorer and writes results/stub_demo.csv,
+results/stub_convergence.csv and results/stub_convergence.png.
+For the real thing, replace stub_scorer(...) with Person 1's Scorer(gmap, weights).
+"""
+import os
+import numpy as np
+import pandas as pd
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+from algorithms import ALGORITHMS, run, greedy_cost
+from stub_score import stub_scorer
+
+K, SEEDS, MULT = 4, range(20), 5
+os.makedirs("results", exist_ok=True)
+budget = MULT * greedy_cost(stub_scorer().n_candidates, K)
+
+rows, hist = [], {}
+for wname in ("uniform", "hotspot"):
+    for a in ALGORITHMS:
+        for s in ([0] if a == "greedy" else SEEDS):      # greedy is deterministic
+            sc = stub_scorer(wname)
+            r = run(a, sc, K, budget, s)
+            rows.append({"algorithm": a, "map": "tiny_stub", "K": K, "weighting": wname, "seed": s,
+                         "score": r.final_score, "runtime": r.runtime, "evaluations": r.evaluations,
+                         "raw_coverage": sc.raw_coverage(r.placement)})
+            if wname == "hotspot":
+                hist.setdefault(a, []).append(r.history)
+
+df = pd.DataFrame(rows)
+df.to_csv("results/stub_demo.csv", index=False)
+print(df.groupby(["weighting", "algorithm"])[["score", "raw_coverage", "runtime", "evaluations"]]
+        .mean().round(4).to_string())
+
+conv = pd.DataFrame({a: np.mean(h, axis=0) for a, h in hist.items()}).rename_axis("evaluation")
+conv.to_csv("results/stub_convergence.csv")
+fig, ax = plt.subplots(figsize=(7, 4))
+for a in conv.columns:
+    ax.plot(conv.index, conv[a], label=a)
+ax.set_xscale("log"); ax.set_xlabel("score evaluations"); ax.set_ylabel("best weighted coverage")
+ax.set_title(f"Convergence on stub scorer (K={K}, mean of {len(list(SEEDS))} seeds)")
+ax.legend(fontsize=8); fig.tight_layout(); fig.savefig("results/stub_convergence.png", dpi=150)
+print("\nwrote results/stub_demo.csv, stub_convergence.csv, stub_convergence.png")
