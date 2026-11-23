@@ -23,6 +23,7 @@ import numpy as np
 
 import config
 from map import GridMap, build_map
+from ml_priority import predict_priority, true_priority
 
 
 # ---------------------------------------------------------------------------
@@ -103,16 +104,6 @@ class Scorer:
 
 def uniform_weights(gmap: GridMap):
     return (gmap.grid == 0).astype(float)
-
-
-def predict_priority(gmap: GridMap):
-    """Return priority weights. STUB: uniform."""
-    return uniform_weights(gmap)
-
-
-def true_priority(gmap: GridMap):
-    """Return true priority weights. STUB: uniform."""
-    return uniform_weights(gmap)
 
 
 def get_weights(gmap: GridMap, weighting: str):
