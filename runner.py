@@ -15,7 +15,8 @@ are replaced by the real modules.
 
 Fair comparison rules
   * every algorithm gets the same evaluation budget on a given map and K:
-    --budget N, else config.EVAL_BUDGET, else BUDGET_FACTOR * K * n_candidates
+    --budget N, else --budget-factor F * K * n_candidates, else config.EVAL_BUDGET,
+    else config.BUDGET_FACTOR * K * n_candidates (greedy needs about 1.0 * K * n_candidates)
   * the optimiser is scored with the weighting under test (uniform / predicted / true)
   * the FINAL placement is always re-scored with the TRUE weights, so the three
     weightings can be compared on the same yardstick
@@ -42,7 +43,8 @@ def _downsample(history, max_points=100):
 
 
 def run_experiments(cfg=config, maps=None, weightings=None, algorithms=None, k_values=None,
-                    n_seeds=None, budget=None, tag="run", out_dir=None, verbose=True):
+                    n_seeds=None, budget=None, budget_factor=None, tag="run", out_dir=None,
+                    verbose=True):
     """Run the full grid and return a DataFrame with columns cfg.RESULT_COLUMNS."""
     maps = maps or cfg.MAP_NAMES
     weightings = weightings or cfg.WEIGHTINGS
@@ -62,8 +64,9 @@ def run_experiments(cfg=config, maps=None, weightings=None, algorithms=None, k_v
             scorer = I.Scorer(gmap, weights=I.get_weights(gmap, weighting))
             for K in k_values:
                 # same budget for every algorithm on this map and K
-                run_budget = (budget or cfg.EVAL_BUDGET
-                              or int(cfg.BUDGET_FACTOR * K * scorer.n_candidates))
+                factor = budget_factor if budget_factor is not None else cfg.BUDGET_FACTOR
+                run_budget = (budget or (None if budget_factor is not None else cfg.EVAL_BUDGET)
+                              or max(1, int(factor * K * scorer.n_candidates)))
                 for algo in algorithms:
                     seeds = [0] if algo in deterministic else range(n_seeds)
                     for i in seeds:
@@ -82,6 +85,9 @@ def run_experiments(cfg=config, maps=None, weightings=None, algorithms=None, k_v
                             "placement": [list(scorer.candidates[j]) for j in res.placement],
                             "history": _downsample(res.history),
                         }
+                if verbose:
+                    print(f"[{time.perf_counter() - t_start:7.1f}s] {name} {weighting} K={K} done "
+                          f"({len(rows)} runs so far, budget {run_budget} evaluations each)", flush=True)
         # checkpoint after every map so a crash does not lose everything
         _save(rows, details, cfg, out_dir, tag)
         if verbose:
@@ -109,11 +115,14 @@ def main():
     p.add_argument("--K", nargs="+", type=int, dest="k_values")
     p.add_argument("--seeds", type=int, dest="n_seeds")
     p.add_argument("--budget", type=int)
+    p.add_argument("--budget-factor", type=float, dest="budget_factor",
+                   help="evaluations per run = F * K * n_candidates (default: config.BUDGET_FACTOR)")
     p.add_argument("--tag", default=None)
     a = p.parse_args()
 
     kw = dict(maps=a.maps, weightings=a.weightings, algorithms=a.algorithms,
-              k_values=a.k_values, n_seeds=a.n_seeds, budget=a.budget)
+              k_values=a.k_values, n_seeds=a.n_seeds, budget=a.budget,
+              budget_factor=a.budget_factor)
     if a.quick:
         kw.update(maps=a.maps or ["tiny"], k_values=a.k_values or [2, 3],
                   n_seeds=a.n_seeds or 2, budget=a.budget or 50)
