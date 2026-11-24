@@ -370,10 +370,15 @@ class Scorer:
             )
 
         # Load masks
+                # Load masks
         with np.load(mask_path) as data:
-            self.candidates = data["candidates"]
+            candidate_array = data["candidates"]
             self.masks = data["masks"]
 
+        # Contract (interfaces.py): candidates is a list of (row, col, direction)
+        # tuples of plain ints, so it can be dumped to JSON.
+        self.candidates = [tuple(int(v) for v in row) for row in candidate_array]
+        
         expected_shape = (
             len(self.candidates),
             self.rows,

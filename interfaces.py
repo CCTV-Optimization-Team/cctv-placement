@@ -27,75 +27,17 @@ from ml_priority import predict_priority, true_priority
 
 
 # ---------------------------------------------------------------------------
-# Person 1
+# Person 1  (real visibility model: Bresenham line of sight, range and field of view)
+
+from visibility import Scorer, build_masks  # noqa: E402  (Scorer loads masks/<map>.npz)
 
 
 def build_candidates(gmap: GridMap, cfg=config):
-    """Return candidates and masks. STUB: square coverage, walls ignored."""
-    candidates, masks = [], []
-    R = cfg.CAMERA_RANGE
-
-    for r, c in gmap.open_cells():
-        for d in range(cfg.N_DIRECTIONS):
-            m = np.zeros(gmap.grid.shape, dtype=bool)
-            m[max(0, r - R):r + R + 1, max(0, c - R):c + R + 1] = True
-            m &= gmap.grid == 0
-            candidates.append((int(r), int(c), d))
-            masks.append(m)
-
-    return candidates, np.array(masks)
-
-
-class Scorer:
-    """Stub weighted-coverage scorer. Person 1's real Scorer replaces this.
-
-    Scorer(gmap, weights=None): weights None -> uniform
-
-    Attributes:
-        candidates: list of (row, col, direction)
-        n_candidates: number of candidates
-        evaluations: number of score() calls
-    """
-
-    def __init__(self, gmap: GridMap, weights=None, cfg=config):
-        self.gmap = gmap
-        self.candidates, self.masks = build_candidates(gmap, cfg)
-        self.weights = (
-            uniform_weights(gmap)
-            if weights is None
-            else np.asarray(weights, dtype=float)
-        )
-        self.n_candidates = len(self.candidates)
-        self.evaluations = 0
-
-    def _covered(self, selected):
-        return self.masks[list(selected)].any(axis=0)
-
-    def score(self, selected) -> float:
-        self.evaluations += 1
-        total = self.weights.sum()
-        return (
-            float(self.weights[self._covered(selected)].sum() / total)
-            if total
-            else 0.0
-        )
-
-    def raw_coverage(self, selected) -> float:
-        open_cells = self.gmap.grid == 0
-        return float(
-            (self._covered(selected) & open_cells).sum() / open_cells.sum()
-        )
-
-    def gain(self, covered, c):
-        total = self.weights.sum()
-        if total == 0:
-            return 0.0
-
-        new = self.masks[c] & ~covered
-        return float(self.weights[new].sum() / total)
-
-    def covered_grid(self, selected):
-        return self._covered(selected)
+    """Return (candidates, masks): list of (row, col, direction) and bool (n, rows, cols)."""
+    candidates, masks = build_masks(
+        gmap.grid, cfg.CAMERA_RANGE, cfg.FOV_DEGREES, cfg.N_DIRECTIONS
+    )
+    return [tuple(int(v) for v in c) for c in candidates], masks
 
 
 # ---------------------------------------------------------------------------
