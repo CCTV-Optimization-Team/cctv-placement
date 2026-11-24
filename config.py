@@ -47,7 +47,8 @@ ALGORITHMS = [
 ]
 
 DETERMINISTIC_ALGORITHMS = ["greedy"]
-EVAL_BUDGET = 2000
+BUDGET_FACTOR = 5         # evaluations per run = BUDGET_FACTOR * K * n_candidates (greedy needs ~K * n_candidates)
+EVAL_BUDGET = None        # or a fixed number of evaluations for every run (overrides BUDGET_FACTOR)
 N_SEEDS = 20
 BASE_SEED = 42
 

@@ -14,7 +14,8 @@ The runner only calls functions from interfaces.py, so it keeps working when the
 are replaced by the real modules.
 
 Fair comparison rules
-  * every algorithm gets the same evaluation budget (config.EVAL_BUDGET)
+  * every algorithm gets the same evaluation budget on a given map and K:
+    --budget N, else config.EVAL_BUDGET, else BUDGET_FACTOR * K * n_candidates
   * the optimiser is scored with the weighting under test (uniform / predicted / true)
   * the FINAL placement is always re-scored with the TRUE weights, so the three
     weightings can be compared on the same yardstick
@@ -48,7 +49,6 @@ def run_experiments(cfg=config, maps=None, weightings=None, algorithms=None, k_v
     algorithms = algorithms or cfg.ALGORITHMS
     k_values = k_values or cfg.K_VALUES
     n_seeds = n_seeds if n_seeds is not None else cfg.N_SEEDS
-    budget = budget or cfg.EVAL_BUDGET
     deterministic = set(getattr(cfg, "DETERMINISTIC_ALGORITHMS", ["greedy"]))
     out_dir = Path(out_dir or cfg.RESULTS_DIR)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -61,12 +61,15 @@ def run_experiments(cfg=config, maps=None, weightings=None, algorithms=None, k_v
         for weighting in weightings:
             scorer = I.Scorer(gmap, weights=I.get_weights(gmap, weighting))
             for K in k_values:
+                # same budget for every algorithm on this map and K
+                run_budget = (budget or cfg.EVAL_BUDGET
+                              or int(cfg.BUDGET_FACTOR * K * scorer.n_candidates))
                 for algo in algorithms:
                     seeds = [0] if algo in deterministic else range(n_seeds)
                     for i in seeds:
                         seed = cfg.BASE_SEED + i
                         try:
-                            res = I.run(algo, scorer, K, budget, seed)
+                            res = I.run(algo, scorer, K, run_budget, seed)
                         except Exception as e:
                             raise RuntimeError(
                                 f"run failed: algorithm={algo} map={name} K={K} "
